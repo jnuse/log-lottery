@@ -1,43 +1,66 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+# 这个工作流会完成 Node.js 依赖的全新安装、缓存/恢复、构建源代码，并进行部署。
+# 更多信息请看: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 
-name: Node.js CI
+name: Node.js CI & Deploy
 
 on:
   workflow_dispatch:
+  # 如果需要推送到 main 分支时自动部署，可以取消下面这几行的注释
+  # push:
+  #   branches:
+  #     - main
 
 jobs:
-  build:
+  build-and-deploy: # 把 job 名称改得更清晰一点
 
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # 赋予 workflow 推送代码到 gh-pages 分支的权限
+
     strategy:
       matrix:
         node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        # 查看 Node.js 版本发布计划: https://nodejs.org/en/about/releases/
 
     steps:
-            - uses: actions/checkout@v3
-            - uses: pnpm/action-setup@v2
-              with:
-                version: 8
-            - name: Use Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v3
-              with:
-                  node-version: ${{ matrix.node-version }}
-                  cache: 'pnpm'
-            - run: pnpm install
-            - run: pnpm build
-            - name: Copy and Rename index.html to dist
-              run: cp dist/index.html dist/404.html
+      # 步骤 1: 检出你的仓库代码 (版本升级到 v4)
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Deploy to gh-pages
-              uses: crazy-max/ghaction-github-pages@v2
-              with:
-                  target_branch: gh-pages
-                  build_dir: dist
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              
+      # 步骤 2: 设置 pnpm 环境
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
+      # 步骤 3: 设置 Node.js 环境并开启缓存
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4 # 版本升级到 v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      # 步骤 4: 安装依赖
+      - name: Install dependencies
+        run: pnpm install
+
+      # 步骤 5: 构建项目
+      - name: Build project
+        run: pnpm build
+
+      # 步骤 6: 为单页应用（SPA）创建 404.html 作为路由回退
+      - name: Create 404.html for SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      # 步骤 7: 创建 CNAME 文件以保留自定义域名（✨新加的关键步骤✨）
+      - name: Create CNAME file
+        run: echo "your.domain.com" > dist/CNAME # ⚠️ 注意：请把 "your.domain.com" 替换成你自己的域名！
+
+      # 步骤 8: 部署到 gh-pages 分支
+      - name: Deploy to gh-pages
+        uses: crazy-max/ghaction-github-pages@v4 # 版本升级到 v4
+        with:
+          target_branch: gh-pages
+          build_dir: dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
